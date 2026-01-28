@@ -63,9 +63,17 @@
     .animate-in {
       animation: slideUp 0.5s ease-out forwards;
     }
+    .credit-float {
+      animation: float 3s ease-in-out infinite;
+      text-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+    }
     @keyframes slideUp {
       from { opacity: 0; transform: translateY(20px); }
       to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); opacity: 0.6; }
+      50% { transform: translateY(-5px); opacity: 1; }
     }
     ::-webkit-scrollbar { width: 5px; }
     ::-webkit-scrollbar-thumb { background: var(--zinc); border-radius: 10px; }
