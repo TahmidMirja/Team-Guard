@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import Login from './pages/Login';
-import Signup from './pages/Signup';
-import UserDashboard from './pages/UserDashboard';
-import AdminDashboard from './pages/AdminDashboard';
-import { User, UserRole, AppState, TaskStatus, DailyReport, ReportStatus, Task, Notice, LeaveRequest, AttendanceRecord, LeaveStatus } from './types';
+import Login from './pages/Login.tsx';
+import Signup from './pages/Signup.tsx';
+import UserDashboard from './pages/UserDashboard.tsx';
+import AdminDashboard from './pages/AdminDashboard.tsx';
+import { User, UserRole, AppState, TaskStatus, DailyReport, ReportStatus, Task, Notice, LeaveRequest, AttendanceRecord, LeaveStatus } from './types.ts';
 
 const LOGIN_URL = "https://n8n.srv1106977.hstgr.cloud/webhook/40892fd8-42cb-40ca-8fa8-75edcffefa32";
 const EVENTS_URL = "https://n8n.srv1106977.hstgr.cloud/webhook/a4dda97d-a837-436b-925d-0a50afee1c7b";
@@ -72,13 +72,13 @@ const App: React.FC = () => {
   }, [state.currentUser]);
 
   useEffect(() => {
-    const saved = localStorage.getItem('tg_v8_session');
+    const saved = localStorage.getItem('tg_v10_session');
     if (saved) {
       try {
         const user = JSON.parse(saved);
         setState(p => ({ ...p, currentUser: user }));
       } catch (e) {
-        localStorage.removeItem('tg_v8_session');
+        localStorage.removeItem('tg_v10_session');
       }
     }
     setLoading(false);
@@ -129,7 +129,7 @@ const App: React.FC = () => {
         };
 
         setState(p => ({ ...p, currentUser: user }));
-        localStorage.setItem('tg_v8_session', JSON.stringify(user));
+        localStorage.setItem('tg_v10_session', JSON.stringify(user));
         return true;
       }
     } catch (err) { console.error("Login Auth Error:", err); }
@@ -140,7 +140,7 @@ const App: React.FC = () => {
     setState(p => {
       if (p.currentUser?.id !== id) return p;
       const updated = { ...p.currentUser, ...updates };
-      localStorage.setItem('tg_v8_session', JSON.stringify(updated));
+      localStorage.setItem('tg_v10_session', JSON.stringify(updated));
       return { ...p, currentUser: updated };
     });
     triggerEventWebhook({ action: 'PROFILE_UPDATE', Name: state.currentUser?.name, Updates: updates });
@@ -149,7 +149,7 @@ const App: React.FC = () => {
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div></div>;
 
   const commonProps = {
-    onLogout: () => { localStorage.removeItem('tg_v8_session'); setState(p => ({ ...p, currentUser: null })); },
+    onLogout: () => { localStorage.removeItem('tg_v10_session'); setState(p => ({ ...p, currentUser: null })); },
     onUpdateProfile: handleProfileUpdate,
   };
 
@@ -163,7 +163,7 @@ const App: React.FC = () => {
              const role = (e.toLowerCase() === ADMIN_EMAIL.toLowerCase()) ? UserRole.ADMIN : UserRole.USER;
              const user: User = { id: 'u-'+Date.now(), uid, name: n, email: e, role, avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${n}`, points: 0, tags: [], joinedAt: new Date().toISOString(), notifications: [], bio: '', lastActive: new Date().toISOString() };
              setState(p => ({ ...p, currentUser: user, users: [...p.users, user] }));
-             localStorage.setItem('tg_v8_session', JSON.stringify(user));
+             localStorage.setItem('tg_v10_session', JSON.stringify(user));
              triggerEventWebhook({ action: 'signup', "Full Name": n, "Email": e, "Password": p, "Role": role, "ID NO.": uid });
              return true;
           }} />} />
