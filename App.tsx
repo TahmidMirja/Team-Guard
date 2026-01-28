@@ -7,7 +7,6 @@ import UserDashboard from './pages/UserDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import { User, UserRole, AppState, TaskStatus, DailyReport, ReportStatus, Task, Notice, LeaveRequest, AttendanceRecord, LeaveStatus } from './types';
 
-// WEBHOOK URLs
 const LOGIN_URL = "https://n8n.srv1106977.hstgr.cloud/webhook/40892fd8-42cb-40ca-8fa8-75edcffefa32";
 const EVENTS_URL = "https://n8n.srv1106977.hstgr.cloud/webhook/a4dda97d-a837-436b-925d-0a50afee1c7b";
 const ADMIN_EMAIL = "tahmidmirja25@gmail.com";
@@ -59,7 +58,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Heartbeat to keep user 'Active'
   useEffect(() => {
     if (!state.currentUser) return;
     const heartbeat = setInterval(() => {
@@ -74,17 +72,16 @@ const App: React.FC = () => {
   }, [state.currentUser]);
 
   useEffect(() => {
-    const saved = localStorage.getItem('tg_v7_session');
+    const saved = localStorage.getItem('tg_v8_session');
     if (saved) {
       try {
         const user = JSON.parse(saved);
         setState(p => ({ ...p, currentUser: user }));
       } catch (e) {
-        localStorage.removeItem('tg_v7_session');
+        localStorage.removeItem('tg_v8_session');
       }
     }
     setLoading(false);
-    
     fetchGlobalState();
     const interval = setInterval(fetchGlobalState, 8000);
     return () => clearInterval(interval);
@@ -100,18 +97,17 @@ const App: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         let userData;
+        const responseData = Array.isArray(data) ? data[0] : data;
+        const rawOutput = responseData.output;
         
-        const rawOutput = data.output || (Array.isArray(data) && data[0].output);
         if (rawOutput) {
           try {
             const cleanJson = rawOutput.replace(/```json\n?|```/g, '').trim();
             const parsed = JSON.parse(cleanJson);
             if (parsed.success) userData = parsed.user;
-          } catch (e) {
-             console.error("Agent JSON parsing failed", e);
-          }
-        } else if (data.success) {
-          userData = data.user;
+          } catch (e) { console.error("Agent Output Parsing Failed", e); }
+        } else if (responseData.success) {
+          userData = responseData.user;
         }
 
         if (!userData) return false;
@@ -133,7 +129,7 @@ const App: React.FC = () => {
         };
 
         setState(p => ({ ...p, currentUser: user }));
-        localStorage.setItem('tg_v7_session', JSON.stringify(user));
+        localStorage.setItem('tg_v8_session', JSON.stringify(user));
         return true;
       }
     } catch (err) { console.error("Login Auth Error:", err); }
@@ -144,7 +140,7 @@ const App: React.FC = () => {
     setState(p => {
       if (p.currentUser?.id !== id) return p;
       const updated = { ...p.currentUser, ...updates };
-      localStorage.setItem('tg_v7_session', JSON.stringify(updated));
+      localStorage.setItem('tg_v8_session', JSON.stringify(updated));
       return { ...p, currentUser: updated };
     });
     triggerEventWebhook({ action: 'PROFILE_UPDATE', Name: state.currentUser?.name, Updates: updates });
@@ -153,7 +149,7 @@ const App: React.FC = () => {
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div></div>;
 
   const commonProps = {
-    onLogout: () => { localStorage.removeItem('tg_v7_session'); setState(p => ({ ...p, currentUser: null })); },
+    onLogout: () => { localStorage.removeItem('tg_v8_session'); setState(p => ({ ...p, currentUser: null })); },
     onUpdateProfile: handleProfileUpdate,
   };
 
@@ -167,7 +163,7 @@ const App: React.FC = () => {
              const role = (e.toLowerCase() === ADMIN_EMAIL.toLowerCase()) ? UserRole.ADMIN : UserRole.USER;
              const user: User = { id: 'u-'+Date.now(), uid, name: n, email: e, role, avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${n}`, points: 0, tags: [], joinedAt: new Date().toISOString(), notifications: [], bio: '', lastActive: new Date().toISOString() };
              setState(p => ({ ...p, currentUser: user, users: [...p.users, user] }));
-             localStorage.setItem('tg_v7_session', JSON.stringify(user));
+             localStorage.setItem('tg_v8_session', JSON.stringify(user));
              triggerEventWebhook({ action: 'signup', "Full Name": n, "Email": e, "Password": p, "Role": role, "ID NO.": uid });
              return true;
           }} />} />
@@ -176,8 +172,8 @@ const App: React.FC = () => {
               state.currentUser.role === UserRole.ADMIN ? (
                 <div>
                    <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] bg-zinc-900/90 backdrop-blur-2xl border border-white/10 p-1.5 rounded-2xl flex shadow-2xl">
-                     <button onClick={() => setIsAdminMode(true)} className={`px-6 py-2.5 rounded-xl text-xs font-bold transition-all ${isAdminMode ? 'bg-emerald-500 text-black' : 'text-zinc-500 hover:text-white'}`}>Admin Console</button>
-                     <button onClick={() => setIsAdminMode(false)} className={`px-6 py-2.5 rounded-xl text-xs font-bold transition-all ${!isAdminMode ? 'bg-emerald-500 text-black' : 'text-zinc-500 hover:text-white'}`}>Agent View</button>
+                     <button onClick={() => setIsAdminMode(true)} className={`px-6 py-2.5 rounded-xl text-xs font-bold transition-all ${isAdminMode ? 'bg-emerald-500 text-black' : 'text-zinc-500 hover:text-white'}`}>Admin</button>
+                     <button onClick={() => setIsAdminMode(false)} className={`px-6 py-2.5 rounded-xl text-xs font-bold transition-all ${!isAdminMode ? 'bg-emerald-500 text-black' : 'text-zinc-500 hover:text-white'}`}>Member View</button>
                    </div>
                    {isAdminMode ? (
                      <AdminDashboard 
@@ -189,12 +185,12 @@ const App: React.FC = () => {
                        onDeleteAccount={(id) => setState(p => ({ ...p, users: p.users.filter(u => u.id !== id) }))}
                        onPostNotice={(n) => {
                          setState(p => ({ ...p, notices: [n, ...p.notices] }));
-                         triggerEventWebhook({ action: 'NOTICE_POST', "Admin": state.currentUser?.name, Title: n.title, Content: n.content, Target: n.targetId });
+                         triggerEventWebhook({ action: 'NOTICE_POST', Title: n.title, Content: n.content, Target: n.targetId });
                        }}
                        onCreateTask={(t) => {
                          setState(p => ({ ...p, tasks: [...p.tasks, t] }));
                          const targetUser = state.users.find(u => u.id === t.assignedTo[0]);
-                         triggerEventWebhook({ action: 'task', "Name": targetUser?.name || "Agent", "Date ": new Date().toLocaleDateString(), "Task details": `${t.title}: ${t.description}` });
+                         triggerEventWebhook({ action: 'task', "Name": targetUser?.name || "Member", "Date ": new Date().toLocaleDateString(), "Task details": `${t.title}: ${t.description}` });
                        }}
                        onReviewReport={(id, s) => setState(p => ({ ...p, reports: p.reports.map(r => r.id === id ? { ...r, status: s } : r) }))}
                        onUpdateRole={(id, r) => setState(p => ({ ...p, users: p.users.map(u => u.id === id ? { ...u, role: r } : u) }))}
