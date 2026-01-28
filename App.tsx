@@ -10,8 +10,8 @@ import { User, UserRole, AppState, TaskStatus, DailyReport, ReportStatus, Task, 
 const LOGIN_URL = "https://n8n.srv1106977.hstgr.cloud/webhook/40892fd8-42cb-40ca-8fa8-75edcffefa32";
 const EVENTS_URL = "https://n8n.srv1106977.hstgr.cloud/webhook/a4dda97d-a837-436b-925d-0a50afee1c7b";
 const ADMIN_EMAIL = "tahmidmirja25@gmail.com";
-// Session key changed to v11 to trigger a "reset" for all users
-const SESSION_KEY = 'tg_v11_session';
+// Reset session to v12 to clear old corrupted data
+const SESSION_KEY = 'tg_v12_session';
 
 const App: React.FC = () => {
   const [state, setState] = useState<AppState>({
@@ -44,10 +44,16 @@ const App: React.FC = () => {
         const data = await res.json();
         const newState = Array.isArray(data) ? data[0] : data;
         if (newState && !newState.error) {
+          // Normalize tasks to ensure assignedTo is always an array
+          const normalizedTasks = (newState.tasks || []).map((t: any) => ({
+            ...t,
+            assignedTo: Array.isArray(t.assignedTo) ? t.assignedTo : [t.assignedTo]
+          }));
+
           setState(p => ({
             ...p,
             users: newState.users || p.users,
-            tasks: newState.tasks || p.tasks,
+            tasks: normalizedTasks,
             notices: newState.notices || p.notices,
             leaves: newState.leaves || p.leaves,
             attendance: newState.attendance || p.attendance,
@@ -193,9 +199,19 @@ const App: React.FC = () => {
                          onCreateTask={(t) => {
                            setState(p => ({ ...p, tasks: [...p.tasks, t] }));
                            const targetUser = state.users.find(u => u.id === t.assignedTo[0]);
-                           triggerEventWebhook({ action: 'task', "Name": targetUser?.name || "Member", "Date ": new Date().toLocaleDateString(), "Task details": `${t.title}: ${t.description}` });
+                           triggerEventWebhook({ 
+                             action: 'task', 
+                             "Name": targetUser?.name || "Member", 
+                             "userId": t.assignedTo[0], 
+                             "taskId": t.id,
+                             "Date ": new Date().toLocaleDateString(), 
+                             "Task details": `${t.title}: ${t.description}` 
+                           });
                          }}
-                         onReviewReport={(id, s) => setState(p => ({ ...p, reports: p.reports.map(r => r.id === id ? { ...r, status: s } : r) }))}
+                         onReviewReport={(id, s) => {
+                           setState(p => ({ ...p, reports: p.reports.map(r => r.id === id ? { ...r, status: s } : r) }));
+                           triggerEventWebhook({ action: 'REPORT_REVIEW', reportId: id, status: s });
+                         }}
                          onUpdateRole={(id, r) => setState(p => ({ ...p, users: p.users.map(u => u.id === id ? { ...u, role: r } : u) }))}
                        />
                      ) : (
@@ -210,10 +226,30 @@ const App: React.FC = () => {
                            triggerEventWebhook({ action: 'suti', "Name": l.userName, "Start date": l.startDate, "End date": l.endDate, "Type": l.type, "Reson": l.reason });
                          }}
                          onSendReport={(r, c) => {
-                           setState(p => ({ ...p, reports: [r, ...p.reports], tasks: c ? p.tasks.map(t => t.id === r.taskId ? { ...t, status: TaskStatus.COMPLETED } : t) : p.tasks }));
-                           triggerEventWebhook({ action: 'report/update', "Name": r.userName, "Date": r.date, "Task name": r.taskTitle, "How many day": r.daysToFinish, "Report": r.workDone, "Attachment": r.attachment || "None", "Eror": r.hasErrors ? "True" : "False" });
+                           setState(p => ({ 
+                             ...p, 
+                             reports: [r, ...p.reports], 
+                             tasks: c ? p.tasks.map(t => t.id === r.taskId ? { ...t, status: TaskStatus.COMPLETED } : t) : p.tasks 
+                           }));
+                           triggerEventWebhook({ 
+                             action: 'report/update', 
+                             "Name": r.userName, 
+                             "userId": r.userId,
+                             "taskId": r.taskId,
+                             "Date": r.date, 
+                             "Task name": r.taskTitle, 
+                             // Fix: Replacing non-existent daysLeft property on DailyReport with daysToFinish
+                             "How many day": r.daysToFinish, 
+                             "Report": r.workDone, 
+                             "IsComplete": c ? "True" : "False",
+                             "Attachment": r.attachment || "None", 
+                             "Eror": r.hasErrors ? "True" : "False" 
+                           });
                          }}
-                         onUpdateTaskStatus={(id, s) => setState(p => ({ ...p, tasks: p.tasks.map(t => t.id === id ? { ...t, status: s } : t) }))}
+                         onUpdateTaskStatus={(id, s) => {
+                           setState(p => ({ ...p, tasks: p.tasks.map(t => t.id === id ? { ...t, status: s } : t) }));
+                           triggerEventWebhook({ action: 'TASK_STATUS_UPDATE', taskId: id, status: s });
+                         }}
                          onToggleLang={() => {}} onClearNotifs={() => {}}
                        />
                      )}
@@ -230,10 +266,27 @@ const App: React.FC = () => {
                       triggerEventWebhook({ action: 'suti', "Name": l.userName, "Start date": l.startDate, "End date": l.endDate, "Type": l.type, "Reson": l.reason });
                     }}
                     onSendReport={(r, c) => {
-                      setState(p => ({ ...p, reports: [r, ...p.reports], tasks: c ? p.tasks.map(t => t.id === r.taskId ? { ...t, status: TaskStatus.COMPLETED } : t) : p.tasks }));
-                      triggerEventWebhook({ action: 'report/update', "Name": r.userName, "Date": r.date, "Task name": r.taskTitle, "How many day": r.daysToFinish, "Report": r.workDone, "Attachment": r.attachment || "None", "Eror": r.hasErrors ? "True" : "False" });
+                      setState(p => ({ 
+                        ...p, 
+                        reports: [r, ...p.reports], 
+                        tasks: c ? p.tasks.map(t => t.id === r.taskId ? { ...t, status: TaskStatus.COMPLETED } : t) : p.tasks 
+                      }));
+                      triggerEventWebhook({ 
+                        action: 'report/update', 
+                        "Name": r.userName, 
+                        "userId": r.userId,
+                        "taskId": r.taskId,
+                        "Date": r.date, 
+                        "Task name": r.taskTitle, 
+                        "Report": r.workDone, 
+                        "IsComplete": c ? "True" : "False",
+                        "Attachment": r.attachment || "None" 
+                      });
                     }}
-                    onUpdateTaskStatus={(id, s) => setState(p => ({ ...p, tasks: p.tasks.map(t => t.id === id ? { ...t, status: s } : t) }))}
+                    onUpdateTaskStatus={(id, s) => {
+                       setState(p => ({ ...p, tasks: p.tasks.map(t => t.id === id ? { ...t, status: s } : t) }));
+                       triggerEventWebhook({ action: 'TASK_STATUS_UPDATE', taskId: id, status: s });
+                    }}
                     onToggleLang={() => {}} onClearNotifs={() => {}}
                   />
                 )
@@ -242,10 +295,10 @@ const App: React.FC = () => {
           </Routes>
         </div>
         
-        {/* Footer Credit Line */}
+        {/* Footer Credit Line with Animation */}
         <div className="py-10 text-center">
-           <p className="credit-float text-[10px] font-black uppercase tracking-[0.4em] text-emerald-500/60">
-             v1 made by <span className="text-emerald-400">tahmid mirja</span>
+           <p className="credit-float text-[11px] font-black uppercase tracking-[0.4em] text-emerald-500/80 hover:text-emerald-400 transition-all cursor-default select-none">
+             v1 made by <span className="text-white drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]">tahmid mirja</span>
            </p>
         </div>
       </div>

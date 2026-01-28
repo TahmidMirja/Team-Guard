@@ -29,6 +29,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ state, onRecordAttendance
   const [reportText, setReportText] = useState('');
   const [daysLeft, setDaysLeft] = useState('0');
   const [hasError, setHasError] = useState(false);
+  const [isTaskFinished, setIsTaskFinished] = useState(false);
   const [attachment, setAttachment] = useState('');
   const [selectedTaskId, setSelectedTaskId] = useState('');
   
@@ -67,7 +68,12 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ state, onRecordAttendance
     }
   };
 
-  const myTasks = tasks.filter(t => t.assignedTo.includes(currentUser.id));
+  // Improved filtering: handle both array and string assignedTo
+  const myTasks = tasks.filter(t => {
+     const assigned = Array.isArray(t.assignedTo) ? t.assignedTo : [t.assignedTo];
+     return assigned.includes(currentUser.id);
+  });
+  
   const myLeaves = leaves.filter(l => l.userId === currentUser.id);
   const myNotices = notices.filter(n => n.targetId === 'ALL' || n.targetId === currentUser.id);
   const unreadCount = myNotices.filter(n => !readNotices.includes(n.id)).length;
@@ -180,13 +186,15 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ state, onRecordAttendance
                   <div key={t.id} className="p-8 bg-zinc-950/60 rounded-[2rem] mb-6 border border-white/5 flex flex-col md:flex-row justify-between gap-6 group hover:border-emerald-500/20 transition-all shadow-xl">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <div className={`w-2 h-2 rounded-full ${t.status === TaskStatus.COMPLETED ? 'bg-emerald-500' : 'bg-indigo-500 animate-pulse'}`}></div>
-                        <p className="font-black text-white text-base tracking-tight">{t.title}</p>
+                        <div className={`w-2 h-2 rounded-full ${t.status === TaskStatus.COMPLETED ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-indigo-500 animate-pulse'}`}></div>
+                        <p className={`font-black text-base tracking-tight ${t.status === TaskStatus.COMPLETED ? 'text-emerald-500' : 'text-white'}`}>{t.title}</p>
                       </div>
                       <p className="text-sm text-zinc-400 leading-relaxed font-medium">{t.description}</p>
                     </div>
                     <div className="flex gap-3 items-center">
-                       {t.status !== TaskStatus.COMPLETED && <button onClick={() => onUpdateTaskStatus(t.id, TaskStatus.COMPLETED)} className="px-6 py-3 text-[10px] font-black text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 rounded-xl hover:bg-emerald-500 hover:text-black transition-all uppercase tracking-widest">Finalize</button>}
+                       {t.status !== TaskStatus.COMPLETED && (
+                         <button onClick={() => onUpdateTaskStatus(t.id, TaskStatus.COMPLETED)} className="px-6 py-3 text-[10px] font-black text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 rounded-xl hover:bg-emerald-500 hover:text-black transition-all uppercase tracking-widest">Finalize</button>
+                       )}
                        <button onClick={() => setSelectedTaskId(t.id)} className="px-6 py-3 text-[10px] font-black text-white bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all uppercase tracking-widest">Report</button>
                     </div>
                   </div>
@@ -207,16 +215,24 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ state, onRecordAttendance
                        <input type="file" ref={reportAttachmentRef} onChange={(e) => handleFileUpload(e, 'ATTACHMENT')} className="hidden" accept="image/*" />
                     </div>
                   </div>
-                  <div className="flex items-center gap-4 bg-rose-500/5 p-5 rounded-2xl border border-rose-500/10">
-                    <input type="checkbox" id="hasErr" checked={hasError} onChange={e => setHasError(e.target.checked)} className="w-5 h-5 rounded-lg accent-rose-500 cursor-pointer" />
-                    <label htmlFor="hasErr" className="text-[11px] font-black text-rose-500 uppercase tracking-widest cursor-pointer">Protocol Breach / Blocker detected</label>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex items-center gap-4 bg-rose-500/5 p-5 rounded-2xl border border-rose-500/10">
+                      <input type="checkbox" id="hasErr" checked={hasError} onChange={e => setHasError(e.target.checked)} className="w-5 h-5 rounded-lg accent-rose-500 cursor-pointer" />
+                      <label htmlFor="hasErr" className="text-[11px] font-black text-rose-500 uppercase tracking-widest cursor-pointer">Protocol Breach</label>
+                    </div>
+                    <div className="flex items-center gap-4 bg-emerald-500/5 p-5 rounded-2xl border border-emerald-500/10">
+                      <input type="checkbox" id="isFin" checked={isTaskFinished} onChange={e => setIsTaskFinished(e.target.checked)} className="w-5 h-5 rounded-lg accent-emerald-500 cursor-pointer" />
+                      <label htmlFor="isFin" className="text-[11px] font-black text-emerald-500 uppercase tracking-widest cursor-pointer">Mission Accomplished</label>
+                    </div>
                   </div>
+
                   <textarea value={reportText} onChange={e => setReportText(e.target.value)} placeholder="Elaborate mission results..." className="w-full bg-zinc-950 border border-white/10 rounded-3xl p-7 text-sm outline-none min-h-[180px] focus:border-emerald-500 text-white placeholder-zinc-800 shadow-inner" />
                   <div className="flex gap-4">
                     <button onClick={() => {
                       if(!reportText) return alert("Logs cannot be null.");
-                      onSendReport({ id: 'rp-'+Date.now(), userId: currentUser.id, userName: currentUser.name, taskId: selectedTaskId, taskTitle: tasks.find(ts=>ts.id===selectedTaskId)?.title || '', date: new Date().toLocaleDateString(), workDone: reportText, problems: '', daysToFinish: daysLeft, hasErrors: hasError, attachment: attachment, status: ReportStatus.PENDING, timestamp: new Date().toISOString() }, false);
-                      setReportText(''); setSelectedTaskId(''); setDaysLeft('0'); setHasError(false); setAttachment('');
+                      onSendReport({ id: 'rp-'+Date.now(), userId: currentUser.id, userName: currentUser.name, taskId: selectedTaskId, taskTitle: tasks.find(ts=>ts.id===selectedTaskId)?.title || '', date: new Date().toLocaleDateString(), workDone: reportText, problems: '', daysToFinish: daysLeft, hasErrors: hasError, attachment: attachment, status: ReportStatus.PENDING, timestamp: new Date().toISOString() }, isTaskFinished);
+                      setReportText(''); setSelectedTaskId(''); setDaysLeft('0'); setHasError(false); setAttachment(''); setIsTaskFinished(false);
                     }} className="btn-emerald flex-1 py-5 rounded-2xl text-[11px] uppercase tracking-[0.2em] shadow-xl">Transmit Log</button>
                     <button onClick={() => setSelectedTaskId('')} className="px-10 py-5 bg-zinc-900 text-zinc-500 font-black text-[11px] rounded-2xl uppercase tracking-widest hover:bg-zinc-800 transition-all">Abort</button>
                   </div>
